@@ -3,50 +3,110 @@ package Outline::Lua;
 use warnings;
 use strict;
 
+our $VERSION = '0.01';
+
+require XSLoader;
+XSLoader::load('Outline::Lua', $VERSION);
+
+sub register_perl_func {
+  my $self = shift;
+  my %args = shift;
+
+  if (!$args{context}) {
+    if ($args{num_ret} > 1) {
+      $args{context} = 'list';
+    }
+
+    elsif ($args{num_ret} == 1) {
+      $args{context} = 'scalar';
+    }
+
+    else {
+      $args{context} = 'void';
+    }
+  }
+
+  $self->_add_func( $args{function},
+                    $args{lua_name},
+                    $args{num_args},
+                    $args{num_ret},
+                    $args{context}  );
+}
+
+1;
+
+__END__
+
 =head1 NAME
 
-Outline::Lua - The great new Outline::Lua!
+Outline::Lua - Not Inline!
 
 =head1 VERSION
 
 Version 0.01
 
-=cut
+=head1 DESCRIPTION
 
-our $VERSION = '0.01';
-
+Register your Perl functions with Lua, then run arbitrary Lua
+code.
 
 =head1 SYNOPSIS
 
-Quick summary of what the module does.
-
-Perhaps a little code snippet.
 
     use Outline::Lua;
 
-    my $foo = Outline::Lua->new();
-    ...
+    my $lua = Outline::Lua->new();
+    $lua->register_perl_func('MyApp::dostuff');
+
+    if (my $error = $lua->run($lua_code)) {
+      die $lua->errorstring;
+    }
+    else {
+      my @return_vals = $lua->return_vals();
+    }
 
 =head1 EXPORT
 
-A list of functions that can be exported.  You can delete this section
-if you don't export anything, such as for a purely object-oriented module.
+Currently none.
 
-=head1 FUNCTIONS
+=head1 METHODS
 
-=head2 function1
+=head2 new
 
-=cut
+Create a new Outline::Lua object, with its own Lua environment.
 
-sub function1 {
-}
+=head2 register_perl_func
 
-=head2 function2
+Register a Perl function by (fully-qualified) name into the Lua
+environment. Currently upvalues and subrefs are not supported.
 
-=cut
+=head3 Args
 
-sub function2 {
-}
+=over
+
+=item function => string
+
+The fully-package-qualified function to register with Lua. 
+
+TODO: support a) upvalues and b) subrefs
+
+=item lua_name => string
+
+The name by which the function will be called within the Lua script.
+
+=item num_args => int
+
+The number of arguments the function expects.
+
+Variable argument numbers are not (yet) supported.
+
+=item num_ret => int
+
+Number of values the function returns.
+
+Variable return lengths are not (yet) supported.
+
+=back
 
 =head1 AUTHOR
 
@@ -100,8 +160,3 @@ Copyright 2009 Alastair Douglas, all rights reserved.
 
 This program is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.
-
-
-=cut
-
-1; # End of Outline::Lua
