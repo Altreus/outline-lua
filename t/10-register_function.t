@@ -1,21 +1,9 @@
 #!perl -T
 
 use strict;
-use Test::More 'no_plan';
 
-use Outline::Lua;
+use lib 't/lib';
+use t::Outline::Lua::register_func;
 
-my $test_str = "Hello world!\n"; # corny
+Test::Class->runtests();
 
-sub test {
-  print $test_str;
-}
-
-close STDOUT; open STDOUT, '>', \my $str;
-
-my $lua = Outline::Lua->new;
-
-$lua->register_perl_func('main::test', 'test', 0, 0);
-$lua->run('test()');
-
-is($str, $test_str);

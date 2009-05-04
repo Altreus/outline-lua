@@ -1,5 +1,6 @@
 #include <lua.h>
 #include <lualib.h>
+#include <lauxlib.h>
 
 #include "EXTERN.h"
 #include "perl.h"
@@ -9,95 +10,16 @@
 
 typedef struct lua_Object {
   lua_State * L;
-  SV        * nil;
-  HV        * funcs;
-  char      * error;
+  AV        * dec_these_refs;
 } lua_Object;
 typedef lua_Object * Outline__Lua;
 
-int strtoflags(char *);
+SV* perl_from_lua_val(lua_Object *, int, int);
+SV* table_to_ref(lua_Object *, int, int);
 
-void lua_push_perl_array {
-  register int i;
-  lua_newtable(L);
-
-  for (i = 0; i <= av_len(av); i++) {
-    SV **ptr = av_fetch(av, i, FALSE);
-    lua_pushnumber(L, (lua_Number)i+1);
-    if (ptr) 
-      push_val(L, *ptr);
-    else
-      lua_pushnil(L);
-    lua_settable(L, -3);
-  }
-}
-
-void lua_push_perl_hash (lua_State *L, HV *hv) {
-  register HE* he;
-  
-  lua_newtable(L);
-  hv_iterinit(hv);
-
-  while (he = hv_iternext(hv)) {
-    I32 len;
-    char *key;
-    key = hv_iterkey(he, &len);
-    lua_pushlstring(L, key, len);
-    push_val(L, hv_iterval(hv, he));
-    lua_settable(L, -3);
-  }
-}
-
-void lua_push_perl_ref(lua_State *L, SV *val) {
-  switch (SvTYPE(val)) {
-	  case SVt_PVAV:
-	    lua_push_perl_array(L, (AV*)val);
-	    return;
-	  case SVt_PVHV:
-	    lua_push_perl_hash(L, (HV*)val);
-	    return;
-	  case SVt_PVCV:
-	    lua_push_perl_funcref(L, (CV*)val);
-	    return;
-	  case SVt_PVGV:
-	    lua_push_perl_io(L, IoIFP(sv_2io(val)));
-	    return;
-	  default:
-	    croak("Attempt to pass unsupported reference type (%s) to Lua", sv_reftype(val, 0));
-  }
-}
-
-void lua_push_perl_var(lua_State *L, SV *val) {
-  switch (SvTYPE(val)) {
-    case SVt_RV:
-      lua_push_perl_ref(L, SvRV(val));
-      return;
-    case SVt_IV: 
-      lua_pushnumber(L, (lua_Number)SvIV(val));
-      return;
-    case SVt_NV:
-      lua_pushnumber(L, (lua_Number)SvNV(val));
-      return;
-    case SVt_PV: case SVt_PVIV: 
-    case SVt_PVNV: case SVt_PVMG:
-    {
-      STRLEN n_a;
-      char *cval = SvPV(val, n_a);
-      lua_pushlstring(L, cval, n_a);
-      return;
-    }
-  }
-}
-
-void lua_push_io (lua_State *L, PerlIO *pio) {
-    FILE **fp = (FILE**)lua_newuserdata(L, sizeof(FILE*));
-    *fp = PerlIO_exportFILE(pio, NULL);
-    luaL_getmetatable(L, "FILE*");
-    lua_setmetatable(L, -2);
-}
-
-SV* perl_from_lua_val(lua_Object *self, int i) {
+SV* perl_from_lua_val(lua_Object *self, int i, int wantarray) {
   lua_State *L  = self->L;
+  SV *retval;
 
   /* We need to use the object to find out things like nil and
    * booleans' actual values
@@ -116,7 +38,8 @@ SV* perl_from_lua_val(lua_Object *self, int i) {
       return newSVpvn(lua_tostring(L, i), lua_strlen(L, i));
 
     case LUA_TTABLE:
-      return table_ref(L, lua_gettop(L));
+      retval = table_to_ref(self, i, wantarray);
+      return retval;
     /*
     case LUA_TFUNCTION:
       *dopop = 0;
@@ -127,12 +50,62 @@ SV* perl_from_lua_val(lua_Object *self, int i) {
   }
 }
 
+SV* table_to_ref(lua_Object *self, int i, int wantarray) {
+  /* Table is stored at location i in the stack. */
+  lua_State *L = self->L;
+  int count, x = 0;
+  SV *retval;
+
+  dSP;
+
+  ENTER;
+  SAVETMPS;
+
+  PUSHMARK(SP);
+  lua_pushnil(L);
+
+  XPUSHs(sv_2mortal( (SV*)( wantarray ? &PL_sv_yes : &PL_sv_no ) ));
+
+  while (lua_next(L, i) != 0) {
+    /* push each key-val pair onto the perl stack, then
+     * call the function to make it either an array or hash
+     * ref
+     */
+    XPUSHs(sv_2mortal(perl_from_lua_val(self, -2, wantarray)));
+    XPUSHs(sv_2mortal(perl_from_lua_val(self, -1, wantarray)));
+    lua_pop(L, 1);
+  }
+  PUTBACK;
+
+  count =  /* better damn well return just one */
+    call_pv("Outline::Lua::_table_to_ref_p", G_SCALAR);
+
+  SPAGAIN;
+
+  if (count != 1)
+    croak("Outline::Lua::_table_to_ref_p did not return exactly 1 var");
+
+  retval = POPs;
+
+  /* I have to increment this or it's GC'd by the time it reaches the caller.
+   * I don't know why, but I never have to decrement it again. Presumably once
+   * Perl has a hold of it its refcount is still 1, and that's Perl's. */
+  SvREFCNT_inc(retval);
+
+  PUTBACK;
+  FREETMPS;
+  LEAVE;
+
+  return retval;
+}
+
 static int run_perl_func (lua_State *L) {
   lua_Object  *self         = (lua_Object*)lua_touserdata(L, lua_upvalueindex(1));
-  RV          *func_params  = (RV*)lua_touserdata(L, lua_upvalueindex(2));
-  char        *func_name    = lua_tostring(L, lua_upvalueindex(3));
+  SV          *func_params  = (SV*)lua_touserdata(L, lua_upvalueindex(2));
+  const char  *func_name    = lua_tostring(L, lua_upvalueindex(3));
   HV          *fp_deref     = (HV*)SvRV(func_params);
 
+  SV  **hashkey;
   int   flags, i, num_ret;
   char *context;
 
@@ -143,9 +116,15 @@ static int run_perl_func (lua_State *L) {
    * b) the number of return values
    * since Lua provisions for variable both, like Perl does.
    */
-  context   = (char*)SvPV(*(hv_fetch(fp_deref, "context",  7, 0)));
+  hashkey   = hv_fetch(fp_deref, "context",  7, 0);
+  if( hashkey )
+    context = (char*)SvPV_nolen(*hashkey);
+  else
+    context = "void";
 
-  flags = strtoflags(context);
+  hashkey   = NULL;
+
+  flags = G_VOID;
 
   if (lua_gettop(L) == 0) 
     flags |= G_NOARGS;
@@ -156,151 +135,148 @@ static int run_perl_func (lua_State *L) {
   ENTER;
   SAVETMPS;
 
-  flags |= strtoflags(context);
+  /*flags |= strtoflags(context);*/
 
   PUSHMARK(SP);
-  /* The stack should now be the right size. */
+  /* Convert the Lua stack into a Perl stack. 
+   * The magic happens in perl_from_lua_val.
+   */
   for (i = 1; i <= lua_gettop(L); ++i) {
-    XPUSHs(sv_2mortal(perl_from_lua_val(self, i)));
+    SV *pval = perl_from_lua_val(self, i, 0);
+    XPUSHs(sv_2mortal(pval));
   }
+
   PUTBACK;
-  num_ret = call_pv(func, flags);
+  num_ret = call_pv(func_name, G_VOID | G_DISCARD);
+
+  /* Prevent processing return values if we don't care about them */
+  if (flags & G_DISCARD)
+    num_ret = 0;
 
   SPAGAIN;
 
   for(i = 0; i < num_ret; ++i) {
-    lua_push_perl_var(L, POPs);
+    lua_push_perl_var(self, POPs);
   }
 
   PUTBACK;
-  /* TODO:
-     Convert the Perl values returned from the Perl function back into
-     Lua values, and push them back on the stack.
-  */
 
   FREETMPS;
   LEAVE;
 
-	return num_return_vals;
-}
-
-static int run_perl_func_ref (lua_State *L) {
-  lua_Object *self = (lua_Object*)lua_touserdata(L, lua_upvalueindex(1));
-  CV         *func = (CV*)        lua_touserdata(L, lua_upvalueindex(2));
-  char       *func_name   = lua_tostring(L, lua_upvalueindex(3));
-
-  /* TODO */
-}
-
-int strtoflags(char *str) {
-  int flags = 0;
-
-  if(!strcmp(str, "void")) {
-    flags = G_VOID;
-  }
-  else if(!strcmp(str, "list") or !strcmp(str, "array")) {
-    flags = G_ARRAY;
-  }
-  else if(!strcmp(str, "scalar")) {
-    flags = G_SCALAR;
-  }
-
-  return flags;
+	return num_ret;
 }
 
 MODULE = Outline::Lua		PACKAGE = Outline::Lua
 
-PROTOTYPES: ENABLE
+PROTOTYPES: DISABLE
 
 Outline::Lua
 new()
   PREINIT:
     lua_Object *self;
-  INIT:
-    Newx(self, 1, lua_Object);
-    self->L = lua_open();
+    lua_State  *L;
+    AV         *dec_these_refs;
   CODE:
-    self->nil   = get_sv("Outline::Lua::nil", 1);
-    self->error = NULL;
-    self->funcs = newHV();
+    L = lua_open();
+    dec_these_refs = newAV();
+
+    self = (lua_Object*) malloc(sizeof(lua_Object));
+    self->L = L;
+    self->dec_these_refs = dec_these_refs;
     RETVAL      = self;
   OUTPUT:
     RETVAL
 
-/* Code receives the struct representing self and
- * the hashref when it is run. It also receives
- * the Lua name of the func, which is the key to
- * the hashref.
- */
+ # Code receives the struct representing self and
+ # the hashref that is the function's parameters,
+ # as well as the lua name for the function being
+ # called.
+
+int
+_run(self, code)
+  Outline::Lua self;
+  SV *code;
+  PREINIT:
+    int error;
+    STRLEN code_length;
+    char *codestr;
+    
+  CODE:
+    # TODO
+    #
+    # SV *error_func;
+    # char *error_func_name;
+    # error_func_name = SvPV(error_func_name);
+    #
+    # If a perl func has been registered with this name, use it as the error func.
+    #
+    # If this isn't real Lua code then you suck.
+    codestr = SvPV(code, code_length);
+    if(!code_length) croak("No code!");
+
+    # Give it to Lua
+    error = luaL_loadbuffer(self->L, codestr, code_length, "LUA_OBJECT_RUN") ||
+            lua_pcall(self->L,0,0,0);
+    # See what happens
+    RETVAL = error;
+    if( error )
+      croak("Lua call failed: %s\n", lua_tostring(self->L, -1));
+
+    # self->error = lua_tostring(self->L, -1);
+
+  OUTPUT:
+    RETVAL
 
 void 
 _add_func(self, lua_name, func_params_ref)
   Outline::Lua self;
   SV *lua_name;
-  RV *func_params_ref;
+  SV *func_params_ref;
   PREINIT:
     char *lua_name_str;
+    char *perl_name_str;
+    SV  **hashkey;
   CODE:
-    lua_name_str = SvPV_nolen(lua_name);
+    # lol.
+    hashkey       = hv_fetch((HV*)SvRV(func_params_ref), "perl_func",  9, 0);
+    if( !hashkey )
+      croak("Required key 'perl_func' not present in _add_func");
+
+    perl_name_str = (char*)SvPV_nolen(*hashkey);
+    lua_name_str  = SvPV_nolen(lua_name);
+
+    # The C closure gets self in 1, the function params in 2,
+    # and the perl name for this function at 3. The lua name of
+    # the function is only used here for naming the function to
+    # Lua, but can be retrieved from the func_params_ref.
+
+    /* in some situations, the HV on the end of the ref seems to be GC'd.
+     * This line should force it to stick around until the closure is called.
+     */
+    SvREFCNT_inc(func_params_ref);
+
+    /* I wonder whether simply doing this will invalidate the previous step */
+    av_push(self->dec_these_refs, func_params_ref);
 
     lua_pushlightuserdata(self->L, self);
     lua_pushlightuserdata(self->L, func_params_ref);
-    lua_pushstring(self->L, lua_name_str);
+    lua_pushstring(self->L, perl_name_str);
     lua_pushcclosure(self->L, &run_perl_func, 3);
     lua_setglobal(self->L, lua_name_str);
 
 void
-_add_code_ref(self, func, func_params_ref)
-  Outline::Lua self;
-  CV *func;
-  RV *func_params_ref;
-  PREINIT:
-    char *lua_name_str;
-  CODE:
-    lua_name_str = SvPV_nolen(lua_name);
-
-    lua_pushlightuserdata(self->L, self);
-    lua_pushlightuserdata(self->L, func);
-    lua_pushstring(self->L, lua_name_str);
-    lua_pushcclosure(self->L, &run_perl_func_ref, 2);
-    lua_setglobal(self->L, lua_name_str);
-
- #int
- #run(self, code)
- #  Outline::Lua self;
- #  SV *code;
- #  PREINIT:
- #    int error;
- #    STRLEN code_length;
- #    char *codestr;
- #    
- #  CODE:
- #    /* TODO
- #    *
- #    * SV *error_func;
- #    * char *error_func_name;
- #    * error_func_name = SvPV(error_func_name);
- #    *
- #    * If a perl func has been registered with this name, use it as the error func.
- #    */
- #    /* If this isn't real Lua code then you suck. */
- #    codestr = SvPV(code, code_length);
- #
- #    /* Give it to Lua */
- #    error = luaL_loadbuffer(self->L, codestr, code_length, "LUA_OBJECT_RUN") ||
- #            lua_pcall(self->L,0,0,0);
- #    /* See what happens */
- #    RETVAL = error;
- #    self->error = lua_tostring(self->L, -1);
- #
- #  OUTPUT:
- #    RETVAL
-
-
-void
 DESTROY(self)
   Outline::Lua self
+  PREINIT:
+    AV *arr;
+    SV *val;
   CODE:
     lua_close(self->L);
-    Safefree(self);
+    arr = self->dec_these_refs;
+    while(av_len(arr) >= 0) {
+      val = av_pop(arr);
+      SvREFCNT_dec(val);
+    }
+    free(self);
 

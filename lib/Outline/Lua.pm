@@ -3,6 +3,9 @@ package Outline::Lua;
 use warnings;
 use strict;
 
+use Scalar::Util qw( looks_like_number );
+use Data::Dumper;
+
 our $VERSION = '0.01';
 
 require XSLoader;
@@ -10,27 +13,50 @@ XSLoader::load('Outline::Lua', $VERSION);
 
 sub register_perl_func {
   my $self = shift;
-  my %args = shift;
+  my %args = @_;
 
-  if (!$args{context}) {
-    if ($args{num_ret} > 1) {
-      $args{context} = 'list';
-    }
+  $args{perl_func} = $args{func} if defined $args{func} and not defined $args{perl_func};
 
-    elsif ($args{num_ret} == 1) {
-      $args{context} = 'scalar';
-    }
+  defined $args{$_} or die "register_perl_func: required argument $_" for qw( perl_func );
 
-    else {
-      $args{context} = 'void';
-    }
-  }
+  ($args{lua_name} = $args{perl_func}) =~ s/.*:://g if not defined $args{lua_name};
 
-  $self->_add_func( $args{function},
-                    $args{lua_name},
-                    $args{num_args},
-                    $args{num_ret},
-                    $args{context}  );
+  $self->_add_func( $args{lua_name},
+                    \%args );
+}
+
+sub run {
+  my $self  = shift;
+
+  $self->_run(@_);
+}
+
+sub _table_to_ref_p { # the p stands for perl to make it different from the XS one.
+  my $want_array = shift;
+
+  # Uhh ... what am I doing? Passing in pairs of stuff...
+  # If we want an array, sort the keys and take the values;
+  # if we want a hash, well, we have a hash.
+  # OK here goes.
+  my %gumpf = @_;
+
+  my $retval = \%gumpf;
+  return $retval unless $want_array;
+
+  $retval = [ @gumpf{ sort { _key_cmp($a, $b) } keys %gumpf } ];
+  return $retval;
+}
+
+# Sort the keys numbers first in number order, then strings in string order
+sub _key_cmp {
+  my ($a, $b) = @_;
+
+  return -1 if looks_like_number($a) and not looks_like_number($b);
+  return  1 if looks_like_number($b) and not looks_like_number($a);
+
+  return $a <=> $b if looks_like_number($a) and looks_like_number($b);
+  return $a cmp $b; 
+
 }
 
 1;
@@ -56,7 +82,7 @@ code.
     use Outline::Lua;
 
     my $lua = Outline::Lua->new();
-    $lua->register_perl_func('MyApp::dostuff');
+    $lua->register_perl_func(perl_func => 'MyApp::dostuff');
 
     if (my $error = $lua->run($lua_code)) {
       die $lua->errorstring;
@@ -84,27 +110,16 @@ environment. Currently upvalues and subrefs are not supported.
 
 =over
 
-=item function => string
+=item {perl_func|func} => string
 
-The fully-package-qualified function to register with Lua. 
+The fully-package-qualified function to register with Lua.
 
 TODO: support a) upvalues and b) subrefs
 
 =item lua_name => string
 
 The name by which the function will be called within the Lua script.
-
-=item num_args => int
-
-The number of arguments the function expects.
-
-Variable argument numbers are not (yet) supported.
-
-=item num_ret => int
-
-Number of values the function returns.
-
-Variable return lengths are not (yet) supported.
+Defaults to the unqualified name of the perl function.
 
 =back
 

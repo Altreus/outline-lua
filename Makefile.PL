@@ -11,6 +11,7 @@ WriteMakefile(
     PREREQ_PM => {
         'Test::More' => 0,
     },
+    LIBS                => '-llua -lm -ldl',
     dist                => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
     clean               => { FILES => 'Outline-Lua-*' },
 );
