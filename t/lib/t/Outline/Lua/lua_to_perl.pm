@@ -15,7 +15,7 @@ my $result;
 # These are here until I implement funcref registration.
 sub _print {
   $result = \@_;
-  print Dumper \@_;
+#  print Dumper \@_;
 }
 
 sub setup : Test( setup ) {

@@ -9,7 +9,8 @@ WriteMakefile(
     ABSTRACT_FROM       => 'lib/Outline/Lua.pm',
     PL_FILES            => {},
     PREREQ_PM => {
-        'Test::More' => 0,
+        'Test::More'  => 0,
+        'Test::Class' => 0,
     },
     LIBS                => '-llua -lm -ldl',
     dist                => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
