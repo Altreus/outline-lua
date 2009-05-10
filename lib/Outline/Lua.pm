@@ -7,6 +7,8 @@ use Scalar::Util qw( looks_like_number );
 use Data::Dumper;
 
 our $VERSION = '0.01';
+our $TRUE    = Outline::Lua::Boolean->true;
+our $FALSE   = Outline::Lua::Boolean->false;
 
 require XSLoader;
 XSLoader::load('Outline::Lua', $VERSION);
@@ -59,6 +61,19 @@ sub _key_cmp {
 
 }
 
+# The Boolean class is used to create $Outline::Lua::TRUE and 
+# $Outline::Lua::FALSE. These are values specifically different from any other
+# value in order that we can convert between Lua's boolean type and Perl's
+# slightly more arbitrary truth concept.
+
+package Outline::Lua::Boolean;
+
+use override bool => sub { shift->[0] ? 1 : "" };
+
+sub true { bless [1], shift };
+
+sub false { bless[ "" ], shift };
+
 1;
 
 __END__
@@ -90,6 +105,110 @@ code.
     else {
       my @return_vals = $lua->return_vals();
     }
+
+=head1 TYPE CONVERSIONS
+
+Since this module is designed to allow Perl code to be run from
+Lua code (and not for Perl code to be able to call Lua functions),
+type conversion happens in only one situation for each direction:
+
+=over
+
+=item 
+
+Perl values are converted to Lua when you return them I<from> 
+a Perl function.
+
+=item
+
+Lua values are converted to Perl when you provide them as 
+arguments I<to> a Perl function.
+
+=back
+
+Most Lua types map happily to Perl types. Lua has its own rules
+about converting between types, with which you should be familiar.
+Consult the Lua docs for these rules.
+
+Outline::Lua, nevertheless, will try to help you on your way.
+
+B<Note:> You should definitely read about Booleans because this is
+the only place where it is not automagic.
+
+=head2 Numbers
+
+Numbers will *always* be passed as strings, whether you are
+returning them to Lua or passing them to Perl.
+
+The reason for this is that Perl will truncate the string
+C<"2.000000"> to the number 2 if you numberify it - and in some
+cases this will introduce a bug, because you wanted the literal
+string C<"2.000000">. Lua's conversion method here is similar
+enough to Perl's that there is no reason to ever convert it to
+a number until you explicitly use it as a number in either the
+Perl or the Lua side.
+
+=head1 Strings
+
+Strings are strings on both sides. No conversion is done.
+
+=head1 Arrays and Hashes
+
+Arrays and hashes are the same in Lua but not in Perl. Your
+Lua table will appear in your Perl function as a hashref; and
+your Perl hashref or arrayref will be converted to a Lua table.
+
+A future release will allow for the setting of an auto-convert
+flag. When set, this will automatically convert any table whose
+keys, when sorted, comprise a range of integers beginning with
+1 and ending with the same integer as the length of the range,
+to an array. Basically, if it looks like it was an array in Lua,
+you will get a Perl arrayref back.
+
+=head2 Booleans
+
+Lua has a boolean type more explicitly than Perl does. Perl is
+happy to take anything that is not false as true and have done
+with.
+
+Therefore, two Perl variables exist, C<$Outline::Lua::TRUE> and
+C<$Outline::Lua::FALSE>. These can be used in any boolean context
+and Perl will behave correctly (since operator 'bool' is 
+overloaded). 
+
+When a boolean-typed value is given to us from a Lua call it will
+be converted to one of these and you can test it happily. This
+has the side effect of allowing you to use it as a string or number
+as well, using Perl's normal conventions.
+
+When you wish to return a boolean-typed value back to Lua from
+your Perl function, simply return $Outline::Lua::TRUE or
+$Outline::Lua::FALSE and it will be converted back into a Lua
+boolean.
+
+Unfortunately this is a necessary evil because of Lua's true/false
+typing. There is no reasonable way of knowing that you intended to
+return a true or false value back to Lua because the Lua code gives
+no clues as to what sort of variable is being assigned *to*: 
+there is no context.
+
+However, Lua is dynamic, like Perl, so in some cases you might
+be able to expect it to Do The Right Thing. That, however, is
+up to Lua.
+
+=head1 undef and nil
+
+The undefined value in Perl and the nil value in Lua will be
+considered equivalent, even though they are functionally slightly
+different. The user is advised that returning undef instead of
+one of the boolean values from a Perl function will not necessarily
+do what they expect.
+
+=head1 Functions
+
+Functions are not yet supported but I have an idea of how it
+could be done. Inline::Lua manages to cope with func refs, so
+I can take ideas from that.
 
 =head1 EXPORT
 
@@ -133,8 +252,27 @@ Please report any bugs or feature requests to C<bug-outline-lua at rt.cpan.org>,
 the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Outline-Lua>.  I will be notified, and then you'll
 automatically be notified of progress on your bug as I make changes.
 
+=head1 TODO
 
+=over
 
+=item Function prototypes
+
+To give the converter a bit of a clue as to what we're trying to
+convert to.
+
+=item Always/sometimes/never array conversion
+
+Part of the above, we can implicitly convert any hash into an array
+if we want to.
+
+=item Func refs
+
+Registering a Perl funcref instead of a real function is possible
+but I haven't got around to stealing it from Tassilo von Parseval
+yet.
+
+=back
 
 =head1 SUPPORT
 
@@ -168,6 +306,10 @@ L<http://search.cpan.org/dist/Outline-Lua>
 
 =head1 ACKNOWLEDGEMENTS
 
+Thanks or maybe apologies to Tassilo von Parseval, author of Inline::Lua.
+I took a fair amount of conversion code from Inline::Lua, which module
+is the whole reason I wrote this one in the first place: and I think
+I'll be nicking a bit more too!
 
 =head1 COPYRIGHT & LICENSE
 
