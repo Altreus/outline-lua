@@ -31,7 +31,7 @@ sub setup : Test( setup ) {
   );
 }
 
-sub t01_nil : Tests {
+sub t01_nil : Test( 1 ) {
   my $self = shift;
   my $lua  = $self->{lua};
 
@@ -60,7 +60,7 @@ EOLUA
   is_deeply( $result, [ "foo\n" ] );
 }
 
-sub t03_number : Tests {
+sub t03_number : Test( 1 ) {
   my $self = shift;
   my $lua  = $self->{lua};
 
@@ -78,7 +78,7 @@ EOLUA
   is_deeply( $result, [ 10, 1.1, 1e-11, 1e9 ] );
 }
 
-sub t04_boolean : Tests {
+sub t04_boolean : Test( 3 ) {
   my $self = shift;
   my $lua  = $self->{lua};
 
@@ -91,10 +91,12 @@ EOLUA
 
   $lua->run( $lua_code );
 
-  is_deeply( $result, [ 1, "" ] );
+  is_deeply( $result, [ $Outline::Lua::TRUE, $Outline::Lua::FALSE ] );
+  ok( $result->[0] );
+  ok( ! $result->[1] );
 }
 
-sub t05_hash : Tests {
+sub t05_hash : Test( 3 ) {
   my $self = shift;
   my $lua  = $self->{lua};
 
@@ -109,6 +111,33 @@ EOLUA
   $lua->run( $lua_code );
 
   is_deeply( $result, [ { foo => 'one', bar => 'two' } ] );
+  
+  TODO: {
+    todo_skip "Not implemented: auto-arrayification", 2 if ! eval { $lua->auto_arrayify(1) };
+
+    $lua_code = <<'EOLUA';
+a = {}
+a[1] = "one"
+a[2] = "two"
+print( a )
+
+EOLUA
+
+    $lua->run( $lua_code );
+    is_deeply( $result, [[ qw( one two ) ]] );
+
+    $lua->auto_arrayify(0);
+    $lua_code = <<'EOLUA';
+a = {}
+a[1] = "one"
+a[2] = "two"
+print( a )
+
+EOLUA
+
+    $lua->run( $lua_code );
+    is_deeply( $result, [ { qw( 1 one 2 two ) } ] );
+  }
 }
 1;
 

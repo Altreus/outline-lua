@@ -1,18 +1,22 @@
-use strict;
-use warnings;
-use ExtUtils::MakeMaker;
 
-WriteMakefile(
-    NAME                => 'Outline::Lua',
-    AUTHOR              => 'Alastair Douglas <altreus@perl.com>',
-    VERSION_FROM        => 'lib/Outline/Lua.pm',
-    ABSTRACT_FROM       => 'lib/Outline/Lua.pm',
-    PL_FILES            => {},
-    PREREQ_PM => {
-        'Test::More'  => 0,
-        'Test::Class' => 0,
-    },
-    LIBS                => '-llua -lm -ldl',
-    dist                => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
-    clean               => { FILES => 'Outline-Lua-*' },
-);
+use inc::Module::Install;
+
+name      'Outline-Lua';
+all_from  'lib/Outline/Lua.pm';
+author    'Alastair Douglas <altreus@perl.com>';
+
+checklibs      lib => 'lua', header => 'lua.h';
+checklibs      lib => 'm';
+checklibs      lib => 'dl';
+
+build_requires  'Test::More';
+build_requires  'Test::Class';
+
+requires  'List::Util';
+requires  'Scalar::Util';
+requires  'overload';
+
+auto_provides;
+auto_install;
+
+WriteAll;

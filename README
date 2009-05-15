@@ -1,15 +1,30 @@
-Outline-Lua
+Outline::Lua
 
-The README is used to introduce the module and provide instructions on
-how to install the module, any machine dependencies it may have (for
-example C compilers and installed libraries) and any other information
-that should be provided before the module is installed.
+With Outline::Lua you can string-eval Lua code.
 
-A README file is required for CPAN modules since CPAN extracts the README
-file from a module distribution so that people browsing the archive
-can use it to get an idea of the module's uses. It is usually a good idea
-to provide version information here so that people can decide whether
-fixes for the module are worth downloading.
+Create a Lua object with Outline::Lua::new and register Perl functions
+to it. The Perl functions become available to Lua as Lua functions.
+
+Lua is meant as a safe environment for running user-contributed code, or
+simply so you don't have to write your own domain-specific language for
+your application.
+
+You can find Lua at http://www.lua.org/
+
+A sandbox is fine too!
+
+
+PREREQUISITES
+
+Outline::Lua should compile against Lua 5.0 and above. If it does not,
+please file a bug (see below).
+
+Note that under Ubuntu and possibly other distros, simply installing the
+Lua dev packages will not work. No, I don't know why.
+
+I recommend always building Lua from source. It is really easy. Even I managed it.
+
+Lua can be found at http://www.lua.org/download.html
 
 
 INSTALLATION
@@ -20,6 +35,7 @@ To install this module, run the following commands:
 	make
 	make test
 	make install
+
 
 SUPPORT AND DOCUMENTATION
 

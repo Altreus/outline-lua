@@ -4,7 +4,7 @@ use warnings;
 use strict;
 
 use Scalar::Util qw( looks_like_number );
-use Data::Dumper;
+use List::Util qw( first );
 
 our $VERSION = '0.01';
 our $TRUE    = Outline::Lua::Boolean->true;
@@ -42,11 +42,22 @@ sub _table_to_ref_p { # the p stands for perl to make it different from the XS o
   # OK here goes.
   my %gumpf = @_;
 
-  my $retval = \%gumpf;
-  return $retval unless $want_array;
+  if (my $keys = _try_lua_array(%gumpf)) {
+    return $keys;
+  }
+  
+  return \%gumpf unless $want_array;
+  return [ @gumpf{ sort { _key_cmp($a, $b) } keys %gumpf } ];
+}
 
-  $retval = [ @gumpf{ sort { _key_cmp($a, $b) } keys %gumpf } ];
-  return $retval;
+sub _try_lua_array {
+  my %hash = @_;
+  return if( first { /\D/ } keys %hash );
+
+  my @keys = sort { $a + 0 <=> $b + 0 } keys %hash;
+  return if ($keys[0] != 1 or $keys[-1] != scalar @keys);
+
+  return \@keys;
 }
 
 # Sort the keys numbers first in number order, then strings in string order
@@ -68,7 +79,15 @@ sub _key_cmp {
 
 package Outline::Lua::Boolean;
 
-use override bool => sub { shift->[0] ? 1 : "" };
+use overload (bool => sub { 
+                shift->[0] ? 1 : "" 
+              },
+#              "==" => sub {
+#                my ($lhs, $rhs) = @_;
+#                return ($lhs && $rhs) || (!$lhs && !$rhs);
+#              },
+              fallback => 1,
+);
 
 sub true { bless [1], shift };
 
@@ -148,11 +167,11 @@ enough to Perl's that there is no reason to ever convert it to
 a number until you explicitly use it as a number in either the
 Perl or the Lua side.
 
-=head1 Strings
+=head2 Strings
 
 Strings are strings on both sides. No conversion is done.
 
-=head1 Arrays and Hashes
+=head2 Arrays and Hashes
 
 Arrays and hashes are the same in Lua but not in Perl. Your
 Lua table will appear in your Perl function as a hashref; and
@@ -196,7 +215,7 @@ However, Lua is dynamic, like Perl, so in some cases you might
 be able to expect it to Do The Right Thing. That, however, is
 up to Lua.
 
-=head1 undef and nil
+=head2 undef and nil
 
 The undefined value in Perl and the nil value in Lua will be
 considered equivalent, even though they are functionally slightly
@@ -204,7 +223,7 @@ different. The user is advised that returning undef instead of
 one of the boolean values from a Perl function will not necessarily
 do what they expect.
 
-=head1 Functions
+=head2 Functions
 
 Functions are not yet supported but I have an idea of how it
 could be done. Inline::Lua manages to cope with func refs, so
@@ -227,18 +246,33 @@ environment. Currently upvalues and subrefs are not supported.
 
 =head3 Args
 
+TODO: support a) upvalues, b) subrefs and c) an array of hashrefs.
+
 =over
 
 =item {perl_func|func} => string
 
 The fully-package-qualified function to register with Lua.
 
-TODO: support a) upvalues and b) subrefs
-
 =item lua_name => string
 
 The name by which the function will be called within the Lua script.
 Defaults to the unqualified name of the perl function.
+
+=back
+
+=head2 run
+
+Run lua code! Currently, the return values from the Lua itself have
+not been implemented, but that is a TODO so cut me some slack.
+
+=head3 Args
+
+=over
+
+=item $str
+
+A string containing the Lua code to run.
 
 =back
 
@@ -271,6 +305,11 @@ if we want to.
 Registering a Perl funcref instead of a real function is possible
 but I haven't got around to stealing it from Tassilo von Parseval
 yet.
+
+=item Return values from the Lua itself
+
+Have not yet implemented the return value of the Lua code itself,
+which is supposed to happen.
 
 =back
 

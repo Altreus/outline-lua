@@ -16,20 +16,23 @@ typedef lua_Object * Outline__Lua;
 
 SV* perl_from_lua_val(lua_Object *, int, int);
 SV* table_to_ref(lua_Object *, int, int);
+void lua_push_perl_var(lua_Object *, SV *);
+void lua_push_perl_ref(lua_Object *, SV *);
+void lua_push_perl_hash(lua_Object *, HV *);
+void lua_push_perl_array(lua_Object *, AV *);
+
+int strtoflags(const char const *);
 
 SV* perl_from_lua_val(lua_Object *self, int i, int wantarray) {
   lua_State *L  = self->L;
   SV *retval;
 
-  /* We need to use the object to find out things like nil and
-   * booleans' actual values
-   */
   switch (lua_type(L, i)) {
     case LUA_TNIL:
       return &PL_sv_undef;
 
     case LUA_TBOOLEAN:
-      return lua_toboolean(L, i) ? &PL_sv_yes : &PL_sv_no;
+      return lua_toboolean(L, i) ? get_sv("Outline::Lua::TRUE", FALSE) : get_sv("Outline::Lua::FALSE", FALSE);
 
     case LUA_TNUMBER:
       return newSVnv(lua_tonumber(L, i));
@@ -40,7 +43,7 @@ SV* perl_from_lua_val(lua_Object *self, int i, int wantarray) {
     case LUA_TTABLE:
       retval = table_to_ref(self, i, wantarray);
       return retval;
-    /*
+    /* TODO
     case LUA_TFUNCTION:
       *dopop = 0;
       return func_ref(L);
@@ -99,6 +102,128 @@ SV* table_to_ref(lua_Object *self, int i, int wantarray) {
   return retval;
 }
 
+void lua_push_perl_var(lua_Object *self, SV *var) {
+  lua_State *L = self->L;
+
+  /* Now we make a Best Guess at what sort of var it is.
+   * We start with the 'unique' values - undef, true and false
+   */
+  if (!var || var == &PL_sv_undef || !SvOK(var)) {
+    lua_pushnil(L);
+    return;
+  }
+
+
+  /* Now we know it's none of those we can do normal magic. */
+  switch (SvTYPE(var)) {
+    case SVt_RV:
+      lua_push_perl_ref(self, SvRV(var));
+      return;
+    case SVt_IV: 
+      lua_pushnumber(L, (lua_Number)SvIV(var));
+      return;
+    case SVt_NV:
+      lua_pushnumber(L, (lua_Number)SvNV(var));
+      return;
+    case SVt_PV: case SVt_PVIV: 
+    case SVt_PVNV: case SVt_PVMG:
+    {
+      STRLEN len;
+      char *cval = SvPV(var, len);
+      lua_pushlstring(L, cval, len);
+      return;
+    }
+  }
+}
+
+void lua_push_perl_array(lua_Object *self, AV *arr) {
+  lua_State *L = self->L;
+  register int i;
+  lua_newtable(L);
+
+  /* Note that the indices in Lua will be 1 greater than in Perl. */
+  for (i = 0; i <= av_len(arr); i++) {
+    SV **ptr = av_fetch(arr, i, FALSE);
+    lua_pushnumber(L, (lua_Number)i+1);
+    if (ptr) 
+	    lua_push_perl_var(self, *ptr);
+    else
+	    lua_pushnil(L);
+    lua_settable(L, -3);
+  }
+}
+
+void lua_push_perl_hash(lua_Object *self, HV *hash) {
+  lua_State *L = self->L;
+  register HE* he;
+  
+  lua_newtable(L);
+  hv_iterinit(hash);
+
+  while (he = hv_iternext(hash)) {
+    I32 len;
+    char *key;
+    key = hv_iterkey(he, &len);
+    lua_pushlstring(L, key, len);
+    lua_push_perl_var(self, hv_iterval(hash, he));
+    lua_settable(L, -3);
+  }
+}
+
+void lua_push_perl_ref (lua_Object *self, SV *val) {
+  lua_State *L = self->L;
+
+  SV *t = get_sv("Outline::Lua::TRUE", FALSE);
+  SV *f = get_sv("Outline::Lua::FALSE", FALSE);
+
+  SvREFCNT_inc(t); SvREFCNT_inc(f);
+
+  if (val == SvRV(t)) {
+    lua_pushboolean(L, 1);
+    return;
+  }
+
+  if (val == SvRV(f)) {
+    lua_pushboolean(L, 0);
+    return;
+  }
+
+  switch (SvTYPE(val)) {
+    case SVt_PVAV:
+	    lua_push_perl_array(self, (AV*)val);
+	    return;
+    case SVt_PVHV:
+	    lua_push_perl_hash(self, (HV*)val);
+	    return;
+      /* TODO
+    case SVt_PVCV:
+	    lua_push_perl_func(L, (CV*)val);
+	    return;
+    case SVt_PVGV:
+	    push_io(L, IoIFP(sv_2io(val)));
+	    return;
+      */
+    default:
+	    croak("Attempt to pass unsupported reference type (%s) to Lua", sv_reftype(val, 0));
+  }
+}
+
+int strtoflags(const char const *str) {
+  int flags = 0;
+
+  if(!strcmp(str, "void")) {
+    flags = G_VOID;
+  }
+  else if(!strcmp(str, "list") || !strcmp(str, "array")) {
+    flags = G_ARRAY;
+  }
+  else if(!strcmp(str, "scalar")) {
+    flags = G_SCALAR;
+  }
+
+  return flags;
+}
+
 static int run_perl_func (lua_State *L) {
   lua_Object  *self         = (lua_Object*)lua_touserdata(L, lua_upvalueindex(1));
   SV          *func_params  = (SV*)lua_touserdata(L, lua_upvalueindex(2));
@@ -120,11 +245,12 @@ static int run_perl_func (lua_State *L) {
   if( hashkey )
     context = (char*)SvPV_nolen(*hashkey);
   else
-    context = "void";
+    context = "array";
 
   hashkey   = NULL;
 
-  flags = G_VOID;
+  flags = strtoflags(context);
+
 
   if (lua_gettop(L) == 0) 
     flags |= G_NOARGS;
@@ -134,8 +260,6 @@ static int run_perl_func (lua_State *L) {
 
   ENTER;
   SAVETMPS;
-
-  /*flags |= strtoflags(context);*/
 
   PUSHMARK(SP);
   /* Convert the Lua stack into a Perl stack. 
@@ -147,17 +271,27 @@ static int run_perl_func (lua_State *L) {
   }
 
   PUTBACK;
-  num_ret = call_pv(func_name, G_VOID | G_DISCARD);
-
+  num_ret = call_pv(func_name, flags);
   /* Prevent processing return values if we don't care about them */
   if (flags & G_DISCARD)
     num_ret = 0;
 
   SPAGAIN;
 
+  /* If we use POPs, the values get pushed onto the Lua stack
+   * in reverse order. This wasn't a problem with the other
+   * way because that allowed us to go from 1 upwards.
+   * I don't know why this way works and other suggested ways
+   * don't (e.g. sp[i] with i=num_ret and --i)
+   */
   for(i = 0; i < num_ret; ++i) {
-    lua_push_perl_var(self, POPs);
+    int offset = num_ret - i - 1;
+    SV *val = *(sp - offset);
+    SvREFCNT_inc(val);
+    lua_push_perl_var(self, val);
   }
+  
+  sp -= num_ret;
 
   PUTBACK;
 
@@ -179,6 +313,7 @@ new()
     AV         *dec_these_refs;
   CODE:
     L = lua_open();
+    luaopen_base(L);
     dec_these_refs = newAV();
 
     self = (lua_Object*) malloc(sizeof(lua_Object));
@@ -270,11 +405,11 @@ DESTROY(self)
   Outline::Lua self
   PREINIT:
     AV *arr;
-    SV *val;
   CODE:
     lua_close(self->L);
     arr = self->dec_these_refs;
     while(av_len(arr) >= 0) {
+      SV *val;
       val = av_pop(arr);
       SvREFCNT_dec(val);
     }
