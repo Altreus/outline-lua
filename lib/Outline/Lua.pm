@@ -103,7 +103,7 @@ Outline::Lua - Run Lua code from a string, rather than embedded.
 
 =head1 VERSION
 
-Version 0.01
+Version 0.02
 
 =head1 DESCRIPTION
 
