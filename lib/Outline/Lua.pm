@@ -99,7 +99,7 @@ __END__
 
 =head1 NAME
 
-Outline::Lua - Not Inline!
+Outline::Lua - Run Lua code from a string, rather than embedded.
 
 =head1 VERSION
 
@@ -154,35 +154,46 @@ Outline::Lua, nevertheless, will try to help you on your way.
 B<Note:> You should definitely read about Booleans because this is
 the only place where it is not automagic.
 
-=head2 Numbers
+=head2 Numbers and Strings
 
-Numbers will *always* be passed as strings, whether you are
-returning them to Lua or passing them to Perl.
+If you have an actual number you will get a number. If you have a
+string that is a number, it will still be a string on the other
+side. Basically, you should experience the same behaviour as in
+Perl:
 
-The reason for this is that Perl will truncate the string
-C<"2.000000"> to the number 2 if you numberify it - and in some
-cases this will introduce a bug, because you wanted the literal
-string C<"2.000000">. Lua's conversion method here is similar
-enough to Perl's that there is no reason to ever convert it to
-a number until you explicitly use it as a number in either the
-Perl or the Lua side.
+  sub ret_num {
+    10.000;
+  }
+  sub ret_str {
+    "foo";
+  }
+  sub ret_str_num {
+    "10.000";
+  }
 
-=head2 Strings
+  # register them, then ...
 
-Strings are strings on both sides. No conversion is done.
+  $lua->run("a = ret_num()");     # a is 10.0
+  $lua->run("b = ret_str()");     # b is "foo"
+  $lua->run("c = ret_str_num()"); # c is "10.000"
+
 
 =head2 Arrays and Hashes
 
 Arrays and hashes are the same in Lua but not in Perl. Your
-Lua table will appear in your Perl function as a hashref; and
-your Perl hashref or arrayref will be converted to a Lua table.
+Perl arrayref or hashref will appear in Lua as a table.
 
-A future release will allow for the setting of an auto-convert
-flag. When set, this will automatically convert any table whose
-keys, when sorted, comprise a range of integers beginning with
-1 and ending with the same integer as the length of the range,
-to an array. Basically, if it looks like it was an array in Lua,
-you will get a Perl arrayref back.
+If you return an array or hash it will be treated as a list,
+as with in Perl, so it will be treated as multiple return
+variables.
+
+The other way,the module will attempt to detect whether your hash 
+is a Lua array or not. To do this, it tests whether your hash keys
+start at 1 and continue in unbroken integer sequence until they
+stop. If they do, it is considered an array and you get an
+array ref back.
+
+Otherwise you get a hash ref back.
 
 =head2 Booleans
 
@@ -211,40 +222,45 @@ return a true or false value back to Lua because the Lua code gives
 no clues as to what sort of variable is being assigned *to*: 
 there is no context.
 
-However, Lua is dynamic, like Perl, so in some cases you might
-be able to expect it to Do The Right Thing. That, however, is
-up to Lua.
+Lua is dynamic like Perl, so in some cases you might be able to 
+expect it to Do The Right Thing. That, however, is up to Lua.
 
 =head2 undef and nil
 
-The undefined value in Perl and the nil value in Lua will be
-considered equivalent, even though they are functionally slightly
-different. The user is advised that returning undef instead of
-one of the boolean values from a Perl function will not necessarily
-do what they expect.
+These two are functionally identical, or at least so much so that
+they are converted between one another transparently.
 
 =head2 Functions
 
-Functions are not yet supported but I have an idea of how it
-could be done. Inline::Lua manages to cope with func refs, so
-I can take ideas from that.
+Functions in Lua are equivalent to coderefs in Perl, but I just
+haven't got around to implementing them yet.
 
 =head1 EXPORT
 
 Currently none.
 
-=head1 METHODS
+=head1 FUNCTIONS
 
 =head2 new
 
 Create a new Outline::Lua object, with its own Lua environment.
+
+Unlike many OO modules, this one has C<new> as a function, not
+a class method:
+
+  my $lua = Outline::Lua::new;
+
+This is because it is XS and wrapping it was too much effort.
+
+=head1 METHODS
+
 
 =head2 register_perl_func
 
 Register a Perl function by (fully-qualified) name into the Lua
 environment. Currently upvalues and subrefs are not supported.
 
-=head3 Args
+B<Args>
 
 TODO: support a) upvalues, b) subrefs and c) an array of hashrefs.
 
@@ -266,7 +282,7 @@ Defaults to the unqualified name of the perl function.
 Run lua code! Currently, the return values from the Lua itself have
 not been implemented, but that is a TODO so cut me some slack.
 
-=head3 Args
+B<Args>
 
 =over
 
