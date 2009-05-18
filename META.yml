@@ -1,5 +1,5 @@
 ---
-abstract: 'Not Inline!'
+abstract: 'Run Lua code from a string, rather than embedded.'
 author:
   - 'Alastair Douglas <altreus@perl.com>'
 build_requires:
@@ -22,7 +22,7 @@ no_index:
 provides:
   Outline::Lua:
     file: lib/Outline/Lua.pm
-    version: 0.01
+    version: 0.03
   Outline::Lua::Boolean:
     file: lib/Outline/Lua.pm
 requires:
@@ -31,4 +31,4 @@ requires:
   overload: 0
 resources:
   license: http://dev.perl.org/licenses/
-version: 0.01
+version: 0.03
