@@ -265,6 +265,7 @@ static int run_perl_func (lua_State *L) {
   /* Convert the Lua stack into a Perl stack. 
    * The magic happens in perl_from_lua_val.
    */
+
   for (i = 1; i <= lua_gettop(L); ++i) {
     SV *pval = perl_from_lua_val(self, i, 0);
     XPUSHs(sv_2mortal(pval));
@@ -314,6 +315,9 @@ new()
   CODE:
     L = lua_open();
     luaopen_base(L);
+    luaopen_table(L);
+    luaopen_string(L);
+    luaopen_math(L);
     dec_these_refs = newAV();
 
     self = (lua_Object*) malloc(sizeof(lua_Object));
@@ -386,18 +390,35 @@ _add_func(self, lua_name, func_params_ref)
     # the function is only used here for naming the function to
     # Lua, but can be retrieved from the func_params_ref.
 
-    /* in some situations, the HV on the end of the ref seems to be GC'd.
-     * This line should force it to stick around until the closure is called.
-     */
+    # in some situations, the HV on the end of the ref seems to be GC'd.
+    # This line should force it to stick around until the closure is called.
     SvREFCNT_inc(func_params_ref);
 
-    /* I wonder whether simply doing this will invalidate the previous step */
+    # I wonder whether simply doing this will invalidate the previous step 
     av_push(self->dec_these_refs, func_params_ref);
 
     lua_pushlightuserdata(self->L, self);
     lua_pushlightuserdata(self->L, func_params_ref);
     lua_pushstring(self->L, perl_name_str);
     lua_pushcclosure(self->L, &run_perl_func, 3);
+    lua_setglobal(self->L, lua_name_str);
+
+void 
+_add_var(self, lua_name, perl_var)
+  Outline::Lua self;
+  SV *lua_name;
+  SV *perl_var;
+  PREINIT:
+    char *lua_name_str;
+  CODE:
+    lua_name_str  = SvPV_nolen(lua_name);
+    # sv_dump(perl_var);
+
+    SvREFCNT_inc(perl_var);
+
+    av_push(self->dec_these_refs, perl_var);
+
+    lua_push_perl_var(self, perl_var);
     lua_setglobal(self->L, lua_name_str);
 
 void
