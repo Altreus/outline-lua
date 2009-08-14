@@ -4,7 +4,7 @@ use inc::Module::Install;
 name      'Outline-Lua';
 all_from  'lib/Outline/Lua.pm';
 author    'Alastair Douglas <altreus@perl.com>';
-version   '0.03';
+version   '0.10';
 
 checklibs      lib => 'lua', header => 'lua.h';
 checklibs      lib => 'm';
