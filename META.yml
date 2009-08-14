@@ -8,6 +8,7 @@ build_requires:
   Test::More: 0
 configure_requires:
   ExtUtils::MakeMaker: 6.42
+  ExtUtils::PkgConfig: 1.12
 distribution_type: module
 generated_by: 'Module::Install version 0.87'
 license: perl
