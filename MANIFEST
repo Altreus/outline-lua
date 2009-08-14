@@ -9,6 +9,7 @@ inc/Module/Install/CheckLib.pm
 inc/Module/Install/Fetch.pm
 inc/Module/Install/Include.pm
 inc/Module/Install/Makefile.pm
+inc/Module/Install/MakeMaker.pm
 inc/Module/Install/Metadata.pm
 inc/Module/Install/Win32.pm
 inc/Module/Install/WriteAll.pm
@@ -26,6 +27,7 @@ t/30-perl_to_lua.t
 t/40-register_var.t
 t/50-error.t
 t/boilerplate.t
+t/lib/t/Outline/Lua/error.pm
 t/lib/t/Outline/Lua/lua_to_perl.pm
 t/lib/t/Outline/Lua/perl_to_lua.pm
 t/lib/t/Outline/Lua/register_func.pm
