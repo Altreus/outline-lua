@@ -3,4 +3,4 @@
 .git
 example.pl
 lua-ref
-^(?!script/|examples/|lib/|inc/|t/|Makefile.PL$|README$|MANIFEST$|Changes$|META.yml$|ppport.h$|typemap$|.*.xs$)
+^(?!script/|examples/|lib/|inc/|t/|Makefile.PL$|README$|MANIFEST$|Changes$|META.yml$|ppport.h$|typemap$|.*.xs$|.swp$)

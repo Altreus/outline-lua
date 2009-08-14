@@ -23,11 +23,13 @@ t/00-load.t
 t/10-register_function.t
 t/20-lua_to_perl.t
 t/30-perl_to_lua.t
+t/40-register_var.t
+t/50-error.t
 t/boilerplate.t
-t/lib/t/Outline/Lua/.perl_to_lua.pm.swp
 t/lib/t/Outline/Lua/lua_to_perl.pm
 t/lib/t/Outline/Lua/perl_to_lua.pm
 t/lib/t/Outline/Lua/register_func.pm
+t/lib/t/Outline/Lua/register_vars.pm
 t/pod-coverage.t
 t/pod.t
 typemap
