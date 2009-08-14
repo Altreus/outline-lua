@@ -6,7 +6,7 @@ use strict;
 use Scalar::Util qw( looks_like_number );
 use List::Util qw( first );
 
-our $VERSION = '0.03';
+our $VERSION = '0.10';
 our $TRUE    = Outline::Lua::Boolean->true;
 our $FALSE   = Outline::Lua::Boolean->false;
 
@@ -21,10 +21,20 @@ sub register_perl_func {
 
   defined $args{$_} or die "register_perl_func: required argument $_" for qw( perl_func );
 
-  ($args{lua_name} = $args{perl_func}) =~ s/.*:://g if not defined $args{lua_name};
+  ($args{lua_name} = $args{perl_func}) =~ s/.*::// if not defined $args{lua_name};
 
   $self->_add_func( $args{lua_name},
                     \%args );
+}
+
+sub register_vars {
+  my $self  = shift;
+
+  my %args  = @_;
+
+  while (my ($lua_name, $perl_var) = each %args) {
+    $self->_add_var( $lua_name, $perl_var );
+  }
 }
 
 sub run {
@@ -103,7 +113,7 @@ Outline::Lua - Run Lua code from a string, rather than embedded.
 
 =head1 VERSION
 
-Version 0.02
+Version 0.10
 
 =head1 DESCRIPTION
 
@@ -136,7 +146,7 @@ type conversion happens in only one situation for each direction:
 =item 
 
 Perl values are converted to Lua when you return them I<from> 
-a Perl function.
+a Perl function, and when you I<register> them to your Lua object.
 
 =item
 
@@ -276,6 +286,18 @@ The name by which the function will be called within the Lua script.
 Defaults to the unqualified name of the perl function.
 
 =back
+
+=head2 register_vars
+
+Install variables into the Lua environment.
+
+B<Args>
+
+This method takes a hash, which is to be C<< lua_name => $perl_var >>.
+The provided variable will then be converted to a Lua type and will
+be available in your Lua code as C<lua_name>.
+
+See above regarding type conversion (particularly booleans).
 
 =head2 run
 
