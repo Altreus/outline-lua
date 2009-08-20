@@ -24,6 +24,8 @@ else {
 checklibs      lib => 'm';
 checklibs      lib => 'dl';
 
+configure_requires "ExtUtils::PkgConfig" => 1.12;
+
 build_requires  'Test::More';
 build_requires  'Test::Class';
 
