@@ -16,9 +16,15 @@ A sandbox is fine too!
 
 PREREQUISITES
 
-Outline::Lua has been written against Lua 5.1, the current. If it does not,
-please do check that your Makefile.PL is pointing to the right libs. They are
-currently correct for Ubuntu 10.04, if you install liblua5.1-0-dev.
+Outline::Lua is compiled against Lua 5.1, which seems to have been current for
+long enough that I'm accepting it as an appropriate version to use.
+
+Outline::Lua is developed on Ubuntu 10.04, which uses pkg-config to find its
+compiler flags. If you don't have pkg-config set up with lua5.1 in it then you
+will have to edit Makefile.PL yourself and add the correct flags in there.
+
+Patches to make it work with 5.0 or 5.1 are welcomed.
+
 
 INSTALLATION
 
