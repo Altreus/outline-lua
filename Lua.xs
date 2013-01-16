@@ -262,9 +262,6 @@ static int run_perl_func (lua_State *L) {
   if (lua_gettop(L) == 0) 
     flags |= G_NOARGS;
 
-  if (flags & G_VOID) 
-    flags |= G_DISCARD;
-
   ENTER;
   SAVETMPS;
 
