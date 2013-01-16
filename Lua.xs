@@ -116,10 +116,17 @@ void lua_push_perl_var(lua_Object *self, SV *var) {
 
   /* Now we know it's none of those we can do normal magic. */
   switch (SvTYPE(var)) {
+#if (PERL_VERSION < 12)
     case SVt_RV:
       lua_push_perl_ref(self, SvRV(var));
       return;
+#endif
     case SVt_IV: 
+#if (PERL_VERSION >= 12)
+      if (SvROK(var))
+        lua_push_perl_ref(self, SvRV(var));
+      else
+#endif
       lua_pushnumber(L, (lua_Number)SvIV(var));
       return;
     case SVt_NV:
