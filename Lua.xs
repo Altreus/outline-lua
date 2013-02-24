@@ -310,7 +310,7 @@ new()
     lua_State  *L;
     AV         *dec_these_refs;
   CODE:
-    L = lua_open();
+    L = luaL_newstate();
     luaL_openlibs(L);
     #luaopen_base(L);
     #luaopen_table(L);
