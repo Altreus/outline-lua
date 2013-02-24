@@ -29,9 +29,8 @@ WriteMakefile(
         Test::Class       => 0,
         Test::More        => 0,
     },
-    ($] >= 5.005 ?     ## Add these new keywords supported since 5.005
-      (ABSTRACT_FROM  => 'lib/Outline/Lua.pm', # retrieve abstract from module
-       AUTHOR         => 'Al <al@podcats.in>') : ()),
+    ABSTRACT_FROM     => 'lib/Outline/Lua.pm', # retrieve abstract from module
+    AUTHOR            => 'Al <al@podcats.in>',
     LIBS              => [$libs], # e.g., '-lm'
     DEFINE            => '', # e.g., '-DHAVE_SOMETHING'
     INC               => $cflags, # e.g., '-I. -I/usr/include/other'
