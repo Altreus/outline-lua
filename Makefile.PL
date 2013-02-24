@@ -2,19 +2,17 @@ use 5.010001;
 use ExtUtils::MakeMaker;
 use ExtUtils::PkgConfig;
 
-my (%liblua, %liblualib, $cflags, $libs);
+my (%liblua, %liblualib, $cflags, $libs, $lua_version);
 
-if(eval {%liblua = ExtUtils::PkgConfig->find('lua5.1');} ) {
-  $cflags = $liblua{cflags};
-  $libs   = $liblua{libs};
-}
-elsif(eval {%liblua = ExtUtils::PkgConfig->find('lua5.2');} ) {
+   eval {%liblua = ExtUtils::PkgConfig->find('lua5.1')}
+or eval {%liblua = ExtUtils::PkgConfig->find('lua5.2')};
+
+if (%liblua) {
   $cflags = $liblua{cflags};
   $libs   = $liblua{libs};
 }
 else {
   $libs = '-llua5.1 -lm -ldl';
-  # Can't guess at cflags
 }
 
 # See lib/ExtUtils/MakeMaker.pm for details of how to influence
