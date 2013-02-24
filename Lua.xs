@@ -49,7 +49,7 @@ SV* perl_from_lua_val(lua_Object *self, int i, int wantarray) {
       return func_ref(L);
     */
     default:
-	    abort();
+	  abort();
   }
 }
 
@@ -131,6 +131,7 @@ void lua_push_perl_var(lua_Object *self, SV *var) {
     lua_pushlstring(L, cval, len);
     return;
   }
+
 }
 
 void lua_push_perl_array(lua_Object *self, AV *arr) {
