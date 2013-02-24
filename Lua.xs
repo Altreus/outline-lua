@@ -38,7 +38,7 @@ SV* perl_from_lua_val(lua_Object *self, int i, int wantarray) {
       return newSVnv(lua_tonumber(L, i));
 
     case LUA_TSTRING:
-      return newSVpvn(lua_tostring(L, i), lua_strlen(L, i));
+      return newSVpvn(lua_tostring(L, i), luaL_len(L, i));
 
     case LUA_TTABLE:
       retval = table_to_ref(self, i, wantarray);
