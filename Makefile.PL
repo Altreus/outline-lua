@@ -8,6 +8,10 @@ if(eval {%liblua = ExtUtils::PkgConfig->find('lua5.1');} ) {
   $cflags = $liblua{cflags};
   $libs   = $liblua{libs};
 }
+elsif(eval {%liblua = ExtUtils::PkgConfig->find('lua5.2');} ) {
+  $cflags = $liblua{cflags};
+  $libs   = $liblua{libs};
+}
 else {
   $libs = '-llua5.1 -lm -ldl';
   # Can't guess at cflags
