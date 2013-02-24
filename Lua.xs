@@ -108,31 +108,28 @@ void lua_push_perl_var(lua_Object *self, SV *var) {
   /* Now we make a Best Guess at what sort of var it is.
    * We start with the 'unique' values - undef, true and false
    */
-  if (!var || var == &PL_sv_undef || !SvOK(var)) {
+  if (!var || !SvOK(var)) {
     lua_pushnil(L);
     return;
   }
 
-
-  /* Now we know it's none of those we can do normal magic. */
-  switch (SvTYPE(var)) {
-    case SVt_RV:
-      lua_push_perl_ref(self, SvRV(var));
-      return;
-    case SVt_IV: 
-      lua_pushnumber(L, (lua_Number)SvIV(var));
-      return;
-    case SVt_NV:
-      lua_pushnumber(L, (lua_Number)SvNV(var));
-      return;
-    case SVt_PV: case SVt_PVIV: 
-    case SVt_PVNV: case SVt_PVMG:
-    {
-      STRLEN len;
-      char *cval = SvPV(var, len);
-      lua_pushlstring(L, cval, len);
-      return;
-    }
+  if (SvROK(var)) {
+    lua_push_perl_ref(self, SvRV(var));
+    return;
+  }
+  else if (SvIOK(var)) {
+    lua_pushnumber(L, (lua_Number)SvIV(var));
+    return;
+  }
+  else if(SvNOK(var)) {
+    lua_pushnumber(L, (lua_Number)SvNV(var));
+    return;
+  }
+  else if(SvPOK(var)) {
+    STRLEN len;
+    char *cval = SvPV(var, len);
+    lua_pushlstring(L, cval, len);
+    return;
   }
 }
 
