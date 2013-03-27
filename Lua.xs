@@ -113,25 +113,33 @@ void lua_push_perl_var(lua_Object *self, SV *var) {
     return;
   }
 
-  if (SvROK(var)) {
-    lua_push_perl_ref(self, SvRV(var));
-    return;
+  /* Now we know it's none of those we can do normal magic. */
+  switch (SvTYPE(var)) {
+#if (PERL_VERSION < 12)
+    case SVt_RV:
+      lua_push_perl_ref(self, SvRV(var));
+      return;
+#endif
+    case SVt_IV: 
+#if (PERL_VERSION >= 12)
+      if (SvROK(var))
+        lua_push_perl_ref(self, SvRV(var));
+      else
+#endif
+      lua_pushnumber(L, (lua_Number)SvIV(var));
+      return;
+    case SVt_NV:
+      lua_pushnumber(L, (lua_Number)SvNV(var));
+      return;
+    case SVt_PV: case SVt_PVIV: 
+    case SVt_PVNV: case SVt_PVMG:
+    {
+      STRLEN len;
+      char *cval = SvPV(var, len);
+      lua_pushlstring(L, cval, len);
+      return;
+    }
   }
-  else if (SvIOK(var)) {
-    lua_pushnumber(L, (lua_Number)SvIV(var));
-    return;
-  }
-  else if(SvNOK(var)) {
-    lua_pushnumber(L, (lua_Number)SvNV(var));
-    return;
-  }
-  else if(SvPOK(var)) {
-    STRLEN len;
-    char *cval = SvPV(var, len);
-    lua_pushlstring(L, cval, len);
-    return;
-  }
-
 }
 
 void lua_push_perl_array(lua_Object *self, AV *arr) {
